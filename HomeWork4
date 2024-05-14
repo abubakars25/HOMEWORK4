@@ -1,0 +1,216 @@
+ PPHA 30537
+# Spring 2024
+# Homework 4
+
+# YOUR NAME HERE: Abu Bakar Siddique
+
+# YOUR CANVAS NAME HERE: abubakars
+# YOUR GITHUB USER NAME HERE: abubakars25
+
+# Due date: Sunday May 12th before midnight
+# Write your answers in the space between the questions, and commit/push only
+# this file to your repo. Note that there can be a difference between giving a
+# "minimally" right answer, and a really good answer, so it can pay to put
+# thought into your work.
+
+##################
+
+# Question 1: Explore the data APIs available from Pandas DataReader. Pick
+# any two countries, and then 
+#   a) Find two time series for each place
+#      - The time series should have some overlap, though it does not have to
+#        be perfectly aligned.
+#      - At least one should be from the World Bank, and at least one should
+#        not be from the World Bank.
+#      - At least one should have a frequency that does not match the others,
+#        e.g. annual, quarterly, monthly.
+#      - You do not have to make four distinct downloads if it's more appropriate
+#        to do a group of them, e.g. by passing two series titles to FRED.
+
+from datetime import datetime
+import pandas_datareader.data as web
+from pandas_datareader import wb
+import pandas as pd
+
+# Define the time period and countries
+start_date = datetime(2000, 1, 1)
+end_date = datetime(2020, 12, 31)
+countries = {'Brazil': 'BRA', 'India': 'IND'}
+
+# Getting the data
+brazil_gdp = wb.download(indicator='NY.GDP.MKTP.KD', country=[countries['Brazil']], start=start_date, end=end_date)
+india_population = wb.download(indicator='SP.POP.TOTL', country=[countries['India']], start=start_date, end=end_date)
+brazil_cpi = web.DataReader('BRACPIALLMINMEI', 'fred', start_date, end_date)
+india_ipi = web.DataReader('INDPRO', 'fred', start_date, end_date)
+
+#   b) Adjust the data so that all four are at the same frequency (you'll have
+#      to look this up), then do any necessary merge and reshaping to put
+#      them together into one long (tidy) format dataframe.
+
+# Conversion to annual freq
+brazil_cpi_annual = brazil_cpi.resample('A').mean()
+india_ipi_annual = india_ipi.resample('A').mean()
+
+# Converting dates to years
+data_frames = [brazil_gdp, india_population, brazil_cpi_annual, india_ipi_annual]
+for df in data_frames:
+    df.reset_index(inplace=True)
+    df['year'] = pd.to_datetime(df['DATE']).dt.year if 'DATE' in df.columns else pd.to_datetime(df['year']).dt.year
+
+# Merging
+merged_data = pd.merge(brazil_gdp, brazil_cpi_annual, on='year', how='outer')
+merged_data = pd.merge(merged_data, india_population, on='year', how='outer', suffixes=('_brazil', '_india'))
+merged_data = pd.merge(merged_data, india_ipi_annual, on='year', how='outer')
+
+
+if 'DATE_x' in merged_data.columns:
+    merged_data.drop(['DATE_x', 'DATE_y'], axis=1, inplace=True)
+
+
+long_format = pd.melt(merged_data, id_vars=['year'], var_name='indicator', value_name='value')
+
+#   c) Finally, go back and change your earlier code so that the
+#      countries and dates are set in variables at the top of the file. Your
+#      final result for parts a and b should allow you to (hypothetically) 
+#      modify these values easily so that your code would download the data
+#      and merge for different countries and dates.
+#      - You do not have to leave your code from any previous way you did it
+#        in the file. If you did it this way from the start, congrats!
+#      - You do not have to account for the validity of all the possible 
+#        countries and dates, e.g. if you downloaded the US and Canada for 
+#        1990-2000, you can ignore the fact that maybe this data for some
+#        other two countries aren't available at these dates.
+
+# Define the time period and countries
+start_date = datetime(2000, 1, 1)
+end_date = datetime(2020, 12, 31)
+countries = {'Brazil': 'BRA', 'India': 'IND'}
+
+# Fetching the data
+brazil_gdp = wb.download(indicator='NY.GDP.MKTP.KD', country=[countries['Brazil']], start=start_date, end=end_date)
+india_population = wb.download(indicator='SP.POP.TOTL', country=[countries['India']], start=start_date, end=end_date)
+brazil_cpi = web.DataReader('BRACPIALLMINMEI', 'fred', start_date, end_date)
+india_ipi = web.DataReader('INDPRO', 'fred', start_date, end_date)
+
+# Conversion to annual freq
+brazil_cpi_annual = brazil_cpi.resample('A').mean()
+india_ipi_annual = india_ipi.resample('A').mean()
+
+# Converting dates to years
+data_frames = [brazil_gdp, india_population, brazil_cpi_annual, india_ipi_annual]
+for df in data_frames:
+    df.reset_index(inplace=True)
+    df['year'] = pd.to_datetime(df['DATE']).dt.year if 'DATE' in df.columns else pd.to_datetime(df['year']).dt.year
+
+# Merging
+merged_data = pd.merge(brazil_gdp, brazil_cpi_annual, on='year', how='outer')
+merged_data = pd.merge(merged_data, india_population, on='year', how='outer', suffixes=('_brazil', '_india'))
+merged_data = pd.merge(merged_data, india_ipi_annual, on='year', how='outer')
+
+
+if 'DATE_x' in merged_data.columns:
+    merged_data.drop(['DATE_x', 'DATE_y'], axis=1, inplace=True)
+
+
+long_format = pd.melt(merged_data, id_vars=['year'], var_name='indicator', value_name='value')
+
+#   d) Clean up any column names and values so that the data is consistent
+#      and clear, e.g. don't leave some columns named in all caps and others
+#      in all lower-case, or some with unclear names, or a column of mixed 
+#      strings and integers. Write the dataframe you've created out to a 
+#      file named q1.csv, and commit it to your repo.
+
+#Part_D
+
+# Renaming columns 
+merged_data.rename(columns={
+    'NY.GDP.MKTP.KD': 'gdp_brazil',
+    'BRACPIALLMINMEI': 'cpi_brazil',
+    'SP.POP.TOTL': 'population_india',
+    'INDPRO': 'ipi_india'
+}, inplace=True)
+
+# Conversion names to lowercase
+merged_data.columns = [col.lower() for col in merged_data.columns]
+
+#CSV
+merged_data.to_csv('q1.csv', index=False)
+
+# Question 2: On the following Harris School website:
+# https://harris.uchicago.edu/academics/design-your-path/certificates/certificate-data-analytics
+# There is a list of six bullet points under "Required courses" and 12
+# bullet points under "Elective courses". Using requests and BeautifulSoup: 
+#   - Collect the text of each of these bullet points
+#   - Add each bullet point to the csv_doc list below as strings (following 
+#     the columns already specified). The first string that gets added should be 
+#     approximately in the form of: 
+#     'required,PPHA 30535 or PPHA 30537 Data and Programming for Public Policy I'
+#   - Hint: recall that \n is the new-line character in text
+#   - You do not have to clean up the text of each bullet point, or split the details out
+#     of it, like the course code and course description, but it's a good exercise to
+#     think about.
+#   - Using context management, write the data out to a file named q2.csv
+#   - Finally, import Pandas and test loading q2.csv with the read_csv function.
+#     Use asserts to test that the dataframe has 18 rows and two columns.
+
+import requests
+from bs4 import BeautifulSoup
+
+url = "https://harris.uchicago.edu/academics/design-your-path/certificates/certificate-data-analytics"
+response = requests.get(url)
+
+soup = BeautifulSoup(response.content, "html.parser")
+
+divClass = "clearfix text-formatted field field--name-body field--type-text-with-summary field--label-hidden field__item"
+required_information_div = soup.find("div", {"class": divClass})
+
+h3_tags = required_information_div.find_all("h3")
+
+print("List of <h3> elements:")
+for tag in h3_tags:
+    print(tag)
+
+h3_ul_pairs = []
+for h3_tag in h3_tags:
+    ul_tags = []
+    next_tag = h3_tag.find_next_sibling()
+    while next_tag and next_tag.name != "h3":
+        if next_tag.name == "ul":
+            ul_tags.append(next_tag)
+        next_tag = next_tag.find_next_sibling()
+    h3_ul_pairs.append((h3_tag, ul_tags))
+
+for h3_tag, ul_tags in h3_ul_pairs:
+    print(h3_tag.get_text())
+    for ul_tag in ul_tags:
+        for li_tag in ul_tag.find_all("li"):
+            print("-", li_tag.get_text())
+            
+course_type = []
+course_description = []
+courseType = ""
+for h3_tag, ul_tags in h3_ul_pairs:
+    print(h3_tag.get_text())
+    courseType = h3_tag.get_text().split()[0]
+    for ul_tag in ul_tags:
+        for li_tag in ul_tag.find_all("li"):
+            print("-", li_tag.get_text())
+            text = li_tag.get_text()
+            dataItemFinal = courseType + ", "+text
+            course_type.append(courseType.strip())
+            course_description.append(text.strip())
+            print(dataItemFinal, courseType,text)
+            
+import pandas as pd
+# Create a DataFrame
+df = pd.DataFrame({
+    'type': course_type,
+    'description': course_description
+})
+
+df.to_csv("q2.csv", index=False)
+
+q2 = pd.read_csv("q2.csv")
+
+
+csv_doc = ['type,description']
